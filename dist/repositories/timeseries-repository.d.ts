@@ -1,0 +1,17 @@
+import { ITimeSeries, IDataPoint } from "../core/entities/index.js";
+import { ITimeSeriesRepository } from "../core/ports/repositories/timeseries-repository.js";
+import { IDatabaseService } from "../core/ports/services/database-service.js";
+export declare class TimeSeriesRepository implements ITimeSeriesRepository {
+    private databaseService;
+    constructor(databaseService: IDatabaseService);
+    createTimeSeries(payload: Omit<ITimeSeries, 'id' | 'data_points'>): Promise<ITimeSeries>;
+    getAllTimeSeries(filter: any): Promise<ITimeSeries[]>;
+    getTimeSeriesById(id: string): Promise<ITimeSeries | null>;
+    deleteTimeSeries(id: string): Promise<{
+        deletedCount: number;
+    }>;
+    addDataPoint(timeSeriesId: string, dataPoint: IDataPoint): Promise<ITimeSeries | null>;
+    updateDataPoint(timeSeriesId: string, dataPointId: string, updatedData: Partial<IDataPoint>): Promise<IDataPoint | null>;
+    deleteDataPoint(timeSeriesId: string, dataPointId: string): Promise<boolean>;
+}
+//# sourceMappingURL=timeseries-repository.d.ts.map

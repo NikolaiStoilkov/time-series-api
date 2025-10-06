@@ -1,0 +1,1 @@
+{"version":3,"file":"database-service.d.ts","sourceRoot":"","sources":["../../../../core/ports/services/database-service.ts"],"names":[],"mappings":"AAEA,MAAM,WAAW,gBAAgB;IAC7B,OAAO,IAAI,OAAO,CAAC,IAAI,CAAC,CAAC;IACzB,UAAU,IAAI,OAAO,CAAC,IAAI,CAAC,CAAC;CAG/B"}

@@ -8,9 +8,7 @@ interface IDataPoint {
 const DataPointSchema = new Schema<IDataPoint>({
     timestamp: { type: Date, required: true },
     value: { type: Number, required: true }
-},
-    { _id: false }
-);
+});
 
 export { DataPointSchema, type IDataPoint };
 

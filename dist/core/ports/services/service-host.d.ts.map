@@ -1,0 +1,1 @@
+{"version":3,"file":"service-host.d.ts","sourceRoot":"","sources":["../../../../core/ports/services/service-host.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,gBAAgB,EAAE,MAAM,uBAAuB,CAAC;AAEzD,cAAc,uBAAuB,CAAC;AAEtC,MAAM,WAAW,WAAW;IACxB,kBAAkB,EAAE,CAAC,QAAQ,EAAE,MAAM,KAAK,gBAAgB,CAAC;CAC9D"}

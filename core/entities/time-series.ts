@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
 import { DataPointSchema, IDataPoint } from "./data-point.js";
@@ -10,7 +10,7 @@ interface ITimeSeries extends Document {
     frequency: string;
     units: string;
     tags?: string[];
-    data_points: IDataPoint[];
+    data_points: Types.DocumentArray<IDataPoint>;
 }
 
 const TimeSeriesSchema = new Schema<ITimeSeries>({

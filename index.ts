@@ -5,6 +5,8 @@ import mongoose from 'mongoose';
 
 import { IDataPoint, ITimeSeries, TimeSeriesModel } from './core/entities/index.js';
 import { parseISODate } from './helper/parse-iso-date.js';
+import { DatabaseService } from './services/database-service.js';
+import { TimeSeriesRepository } from './repositories/timeseries-repository.js';
 
 process.on('uncaughtException', (err) => {
   console.error('Unhandled exception:', err);
@@ -14,257 +16,177 @@ process.on('uncaughtException', (err) => {
 const app = express();
 const port = 3000;
 
-mongoose.connect('mongodb://localhost:27017/timeseriesdb')
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('Could not connect to MongoDB:', err));
+const mongoUri = 'mongodb://localhost:27017/timeseriesdb?replicaSet=rs0&directConnection=true';
+const databaseService = new DatabaseService(mongoUri);
+const timeSeriesRepository = new TimeSeriesRepository(databaseService);
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+databaseService.connect()
+  .then(() => {
+    console.log('Connected to MongoDB');
 
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next();
-});
+    app.use(express.json());
+    app.use(express.urlencoded({ extended: true }));
 
-app.get('/test', (req: Request, res: Response) => {
-  res.json({ message: 'Hello World!' });
-});
-
-app.post('/post', async (req, res) => {
-  res.send("Data araived");
-});
-
-
-app.post('/timeseries', async (req: Request<{}, {}, Omit<ITimeSeries, 'id' | 'data_points'>>, res: Response) => {
-  const { name, description, frequency, units, tags } = req.body;
-
-  if (!name || !frequency || !units) {
-    return res.status(400).json({ error: "Missing required fields: name, frequency, units" });
-  }
-
-  try {
-    const newTimeSeries = new TimeSeriesModel({
-      name,
-      description,
-      frequency,
-      units,
-      tags: tags || [],
-      data_points: []
+    app.use((req: Request, res: Response, next: Function) => {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+      next();
     });
-    await newTimeSeries.save();
 
-    const { _id, __v, data_points, ...metadata } = newTimeSeries.toJSON();
+    app.get('/test', (req: Request, res: Response) => {
+      res.json({ message: 'Hello World!' });
+    });
 
-    res.status(201).json({ ...metadata, message: "Time series created successfully." });
-  } catch (error: any) {
-    if (error.code === 11000) { // Duplicate key error
-      return res.status(409).json({ error: "Time series with this ID already exists." });
-    }
+    app.post('/post', (req: Request, res: Response) => {
+      res.send("Data arrived");
+    });
 
-    console.error("Error creating time series:", error);
-
-    res.status(500).json({ error: "Failed to create time series." });
-  }
-});
-
-app.get('/timeseries/:id', async (req: Request<{ id: string }>, res: Response) => {
-  const { id } = req.params;
-
-  try {
-    const timeSeries = await TimeSeriesModel.findOne({ id: id }).select('-data_points');
-
-    if (!timeSeries) {
-      return res.status(404).json({ error: "Time series not found." });
-    }
-
-    const { _id, __v, ...metadata } = timeSeries.toJSON();
-    res.status(200).json(metadata);
-
-  } catch (error) {
-    console.error("Error getting time series metadata:", error);
-    res.status(500).json({ error: "Failed to retrieve time series metadata." });
-  }
-});
-
-app.put('/timeseries/:id', async (req: Request<{ id: string }, {}, Partial<Omit<ITimeSeries, 'id' | 'data_points'>>>, res: Response) => {
-  const { id } = req.params;
-  const updates = req.body;
-
-  try {
-    const updatedTimeSeries = await TimeSeriesModel.findOneAndUpdate(
-      { id: id },
-      { $set: updates }, // Use $set to update specific fields
-      { new: true, runValidators: true }
-    ).select('-data_points');
-
-    if (!updatedTimeSeries) {
-      return res.status(404).json({ error: "Time series not found." });
-    }
-
-    const { _id, __v, ...metadata } = updatedTimeSeries.toJSON();
-    res.status(200).json(metadata);
-
-  } catch (error) {
-    console.error("Error updating time series metadata:", error);
-    res.status(500).json({ error: "Failed to update time series metadata." });
-  }
-});
-
-app.delete('/timeseries/:id', async (req: Request<{ id: string }>, res: Response) => {
-  const { id } = req.params;
-
-  try {
-    // Delete by our custom `id` field
-    const result = await TimeSeriesModel.deleteOne({ id: id });
-
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ error: "Time series not found." });
-    }
-
-    res.status(204).send(); // No content for successful deletion
-
-  } catch (error) {
-    console.error("Error deleting time series:", error);
-    res.status(500).json({ error: "Failed to delete time series." });
-  }
-});
-
-app.post('/timeseries/:id/data', async (req: Request<{ id: string }, {}, { timestamp: string, value: number }[]>, res: Response) => {
-  const { id } = req.params;
-  const incomingDataPoints = req.body;
-
-  if (!Array.isArray(incomingDataPoints)) {
-    return res.status(400).json({ error: "Request body must be an array of data points." });
-  }
-
-  const validPoints: IDataPoint[] = [];
-  for (const dp of incomingDataPoints) {
-    if (typeof dp.timestamp !== 'string' || typeof dp.value !== 'number') {
-      return res.status(400).json({ error: `Invalid data point format: ${JSON.stringify(dp)}. Each data point must have a 'timestamp' (string) and 'value' (number).` });
-    }
-    const parsedTimestamp = parseISODate(dp.timestamp);
-    if (!parsedTimestamp) {
-      return res.status(400).json({ error: `Invalid ISO 8601 timestamp format: ${dp.timestamp}` });
-    }
-    validPoints.push({ timestamp: parsedTimestamp, value: dp.value });
-  }
-
-  try {
-    const timeSeries = await TimeSeriesModel.findOneAndUpdate(
-      { id: id },
-      { $push: { data_points: { $each: validPoints } } },
-      { new: true }
-    );
-
-    if (!timeSeries) {
-      return res.status(404).json({ error: "Time series not found." });
-    }
-
-    res.status(200).json({ message: `${validPoints.length} data points added to ${id}.` });
-
-  } catch (error) {
-    console.error("Error adding data points:", error);
-    res.status(500).json({ error: "Failed to add data points." });
-  }
-});
-
-app.get('/timeseries/:id/data', async (req: Request<{ id: string }, {}, {}, { start_time?: string, end_time?: string, limit?: string, aggregation?: string, interval?: string }>, res: Response) => {
-  const { id } = req.params;
-  const { start_time, end_time, limit, aggregation, interval } = req.query;
-
-  try {
-    const timeSeries = await TimeSeriesModel.findOne({ id: id });
-
-    if (!timeSeries) {
-      return res.status(404).json({ error: "Time series not found." });
-    }
-
-    let filteredData = [...timeSeries.data_points]; // Create a copy of embedded documents
-
-    // Apply time filters in Node.js for embedded documents.
-    // For very large embedded arrays, an aggregation pipeline in MongoDB would be more efficient,
-    // but it adds complexity. This approach is simpler for demonstration.
-    if (start_time) {
-      const startDt = parseISODate(start_time);
-      if (!startDt) return res.status(400).json({ error: "Invalid start_time format." });
-      filteredData = filteredData.filter(dp => dp.timestamp >= startDt);
-    }
-    if (end_time) {
-      const endDt = parseISODate(end_time);
-      if (!endDt) return res.status(400).json({ error: "Invalid end_time format." });
-      filteredData = filteredData.filter(dp => dp.timestamp <= endDt);
-    }
-
-    filteredData.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-
-    if (limit) {
-      const numLimit = parseInt(limit);
-      if (isNaN(numLimit) || numLimit <= 0) {
-        return res.status(400).json({ error: "Invalid limit. Must be a positive integer." });
+    app.post('/timeseries', async (req: Request<{}, {}, Omit<ITimeSeries, 'id' | 'data_points'>>, res: Response) => {
+      try {
+        const newTimeSeries = await timeSeriesRepository.createTimeSeries(req.body);
+        res.status(201).json(newTimeSeries);
+      } catch (error: any) {
+        console.error('Error creating time series:', error);
+        res.status(500).json({ error: 'Failed to create time series.' });
       }
-      filteredData = filteredData.slice(0, numLimit);
-    }
+    });
 
-    if (aggregation) {
-      if (!filteredData.length) {
-        return res.status(200).json({ aggregated_value: null, aggregation_type: aggregation, message: "No data points for aggregation." });
+    app.get('/timeseries', async (req: Request<{}, {}, {}, { name?: string, tags?: string }>, res: Response) => {
+      try {
+        const { name, tags } = req.query;
+        let filter: any = {};
+
+        if (name) {
+          filter.name = name;
+        }
+        if (tags) {
+          filter.tags = { $in: tags.split(',') };
+        }
+
+        const timeSeries = await timeSeriesRepository.getAllTimeSeries(filter);
+
+        res.json(timeSeries);
+      } catch (error) {
+        console.error('Error fetching time series:', error);
+        res.status(500).json({ error: 'Failed to fetch time series.' });
       }
+    });
 
-      const values = filteredData.map(dp => dp.value);
-      let result: number | null = null;
-      let aggType = aggregation;
+    app.get('/timeseries/:id', async (req: Request<{ id: string }>, res: Response) => {
+      try {
+        const timeSeries = await timeSeriesRepository.getTimeSeriesById(req.params.id);
 
-      switch (aggregation) {
-        case "avg":
-          result = values.reduce((sum, val) => sum + val, 0) / values.length;
-          aggType = "average";
-          break;
-        case "min":
-          result = Math.min(...values);
-          aggType = "minimum";
-          break;
-        case "max":
-          result = Math.max(...values);
-          aggType = "maximum";
-          break;
-        case "sum":
-          result = values.reduce((sum, val) => sum + val, 0);
-          aggType = "sum";
-          break;
-        case "count":
-          result = values.length;
-          aggType = "count";
-          break;
-        default:
-          return res.status(400).json({ error: `Unsupported aggregation type: ${aggregation}. Supported types: avg, min, max, sum, count.` });
+        if (!timeSeries) {
+          return res.status(404).json({ error: 'Time series not found.' });
+        }
+
+        res.json(timeSeries);
+      } catch (error) {
+        console.error('Error fetching time series by ID:', error);
+        res.status(500).json({ error: 'Failed to fetch time series.' });
       }
+    });
 
-      if (interval) {
-        return res.status(200).json({
-          aggregated_value: result,
-          aggregation_type: aggType,
-          message: `Note: Interval-based aggregation with interval '${interval}' is not fully implemented in this conceptual example for embedded data_points. Returning aggregate over the entire filtered range.`,
-          data_points: filteredData.map(dp => ({ timestamp: dp.timestamp.toISOString(), value: dp.value })) // Still return data as ISO string
-        });
+    app.delete('/timeseries/:id', async (req: Request<{ id: string }>, res: Response) => {
+      try {
+        const result = await timeSeriesRepository.deleteTimeSeries(req.params.id);
+
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ error: 'Time series not found.' });
+        }
+
+        res.status(204).send(); // No Content
+      } catch (error) {
+        console.error('Error deleting time series:', error);
+        res.status(500).json({ error: 'Failed to delete time series.' });
       }
+    });
 
-      return res.status(200).json({ aggregated_value: result, aggregation_type: aggType });
-    }
+    app.post('/timeseries/:id/data', async (req: Request<{ id: string }, {}, IDataPoint>, res: Response) => {
+      try {
+        const timeSeries = await timeSeriesRepository.addDataPoint(req.params.id, req.body);
 
-    res.status(200).json({ data_points: filteredData.map(dp => ({ timestamp: dp.timestamp.toISOString(), value: dp.value })) });
+        if (!timeSeries) {
+          return res.status(404).json({ error: 'Time series not found.' });
+        }
 
-  } catch (error) {
-    console.error("Error retrieving time series data:", error);
-    res.status(500).json({ error: "Failed to retrieve time series data." });
-  }
-});
+        res.status(201).json(timeSeries);
+      } catch (error: any) {
+        console.error('Error adding data point:', error);
+        res.status(500).json({ error: 'Failed to add data point.', details: error.message });
+      }
+    });
+
+    app.get('/timeseries/:id/data', async (req: Request<{ id: string }>, res: Response) => {
+      try {
+        const timeSeries = await timeSeriesRepository.getTimeSeriesById(req.params.id);
+
+        if (!timeSeries) {
+          return res.status(404).json({ error: 'Time series not found.' });
+        }
+
+        res.json(timeSeries.data_points);
+      } catch (error) {
+        console.error('Error fetching data points:', error);
+        res.status(500).json({ error: 'Failed to fetch data points.' });
+      }
+    });
+
+    app.get('/timeseries/:id/data/:dataPointId', async (req: Request<{ id: string, dataPointId: string }>, res: Response) => {
+      try {
+        const timeSeries = await timeSeriesRepository.getTimeSeriesById(req.params.id);
+
+        if (!timeSeries) {
+          return res.status(404).json({ error: 'Time series not found.' });
+        }
+
+        const dataPoint = timeSeries.data_points.id(req.params.dataPointId);
+
+        if (!dataPoint) {
+          return res.status(404).json({ error: 'Data point not found.' });
+        }
+
+        res.json(dataPoint);
+      } catch (error) {
+        console.error('Error fetching data point by ID:', error);
+        res.status(500).json({ error: 'Failed to fetch data point.' });
+      }
+    });
+
+    app.patch('/timeseries/:id/data/:dataPointId', async (req: Request<{ id: string, dataPointId: string }, {}, Partial<IDataPoint>>, res: Response) => {
+      try {
+        const updatedDataPoint = await timeSeriesRepository.updateDataPoint(req.params.id, req.params.dataPointId, req.body);
+
+        if (!updatedDataPoint) {
+          return res.status(404).json({ error: 'Time series or data point not found.' });
+        }
+
+        res.json(updatedDataPoint);
+      } catch (error: any) {
+        console.error('Error updating data point:', error);
+        res.status(500).json({ error: 'Failed to update data point.', details: error.message });
+      }
+    });
+
+    app.delete('/timeseries/:id/data/:dataPointId', async (req: Request<{ id: string, dataPointId: string }>, res: Response) => {
+      try {
+        const deleted = await timeSeriesRepository.deleteDataPoint(req.params.id, req.params.dataPointId);
+
+        if (!deleted) {
+          return res.status(404).json({ error: 'Time series or data point not found.' });
+        }
+
+        res.status(204).send(); // No Content
+      } catch (error) {
+        console.error('Error deleting data point:', error);
+        res.status(500).json({ error: 'Failed to delete data point.' });
+      }
+    });
 
 
-
-
-
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  })
+  .catch((err) => console.error('Could not connect to MongoDB:', err));
 
 

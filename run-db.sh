@@ -72,7 +72,9 @@ create_and_run_mongo() {
 
         echo "Initializing replica set 'rs0'..."
 
-        docker exec -it $CONTAINER_NAME mongosh --eval "rs.initiate({ _id: \"rs0\", members: [ { _id: 0, host: \"localhost:$MONGO_PORT\" } ] })" > /dev/null 2>&1
+        sleep 15 # Give MongoDB some time to fully initialize
+        # MONGO_HOSTNAME=$(docker exec $CONTAINER_NAME hostname)
+        docker exec -i $CONTAINER_NAME mongosh --eval "rs.initiate({ _id: \"rs0\", members: [ { _id: 0, host: \"localhost:$MONGO_PORT\" } ] })"
 
         if [ $? -eq 0 ]; then
             echo "Replica set 'rs0' initialized successfully."

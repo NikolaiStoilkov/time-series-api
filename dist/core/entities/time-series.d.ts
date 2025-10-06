@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Document, Types } from "mongoose";
 import { IDataPoint } from "./data-point.js";
 interface ITimeSeries extends Document {
     id: string;
@@ -7,20 +7,20 @@ interface ITimeSeries extends Document {
     frequency: string;
     units: string;
     tags?: string[];
-    data_points: IDataPoint[];
+    data_points: Types.DocumentArray<IDataPoint>;
 }
-declare const TimeSeriesSchema: mongoose.Schema<ITimeSeries, mongoose.Model<ITimeSeries, any, any, any, mongoose.Document<unknown, any, ITimeSeries, any, {}> & ITimeSeries & {
-    _id: mongoose.Types.ObjectId;
-} & {
+declare const TimeSeriesSchema: mongoose.Schema<ITimeSeries, mongoose.Model<ITimeSeries, any, any, any, mongoose.Document<unknown, any, ITimeSeries, any, {}> & ITimeSeries & Required<{
+    _id: unknown;
+}> & {
     __v: number;
-}, any>, {}, {}, {}, {}, mongoose.DefaultSchemaOptions, ITimeSeries, mongoose.Document<unknown, {}, mongoose.FlatRecord<ITimeSeries>, {}, mongoose.ResolveSchemaOptions<mongoose.DefaultSchemaOptions>> & mongoose.FlatRecord<ITimeSeries> & {
-    _id: mongoose.Types.ObjectId;
-} & {
+}, any>, {}, {}, {}, {}, mongoose.DefaultSchemaOptions, ITimeSeries, mongoose.Document<unknown, {}, mongoose.FlatRecord<ITimeSeries>, {}, mongoose.ResolveSchemaOptions<mongoose.DefaultSchemaOptions>> & mongoose.FlatRecord<ITimeSeries> & Required<{
+    _id: unknown;
+}> & {
     __v: number;
 }>;
-declare const TimeSeriesModel: mongoose.Model<ITimeSeries, {}, {}, {}, mongoose.Document<unknown, {}, ITimeSeries, {}, {}> & ITimeSeries & {
-    _id: mongoose.Types.ObjectId;
-} & {
+declare const TimeSeriesModel: mongoose.Model<ITimeSeries, {}, {}, {}, mongoose.Document<unknown, {}, ITimeSeries, {}, {}> & ITimeSeries & Required<{
+    _id: unknown;
+}> & {
     __v: number;
 }, any>;
 export { TimeSeriesModel, TimeSeriesSchema, type ITimeSeries };
