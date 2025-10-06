@@ -1,10 +1,7 @@
 import express from 'express';
 import { Request, Response } from 'express';
 
-import mongoose from 'mongoose';
-
-import { IDataPoint, ITimeSeries, TimeSeriesModel } from './core/entities/index.js';
-import { parseISODate } from './helper/parse-iso-date.js';
+import { IDataPoint, ITimeSeries } from './core/entities/index.js';
 import { DatabaseService } from './services/database-service.js';
 import { TimeSeriesRepository } from './repositories/timeseries-repository.js';
 

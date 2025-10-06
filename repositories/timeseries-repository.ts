@@ -4,7 +4,7 @@ import { IDatabaseService } from "../core/ports/services/database-service.js";
 import { parseISODate } from "../helper/parse-iso-date.js";
 
 export class TimeSeriesRepository implements ITimeSeriesRepository {
-    private databaseService: IDatabaseService; // This will not be directly used here for now, but shows the dependency
+    private databaseService: IDatabaseService;
 
     constructor(databaseService: IDatabaseService) {
         this.databaseService = databaseService;
