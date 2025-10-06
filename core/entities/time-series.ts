@@ -1,7 +1,7 @@
 import mongoose, { Schema } from "mongoose";
 import { v4 as uuidv4 } from "uuid";
 
-import { DataPointSchema, IDataPoint } from "./data-point";
+import { DataPointSchema, IDataPoint } from "./data-point.js";
 
 interface ITimeSeries extends Document {
     id: string; // UUID for external API use

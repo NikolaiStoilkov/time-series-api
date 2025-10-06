@@ -1,10 +1,15 @@
-import express = require('express');
+import express from 'express';
 import { Request, Response } from 'express';
 
 import mongoose from 'mongoose';
 
-import { IDataPoint, ITimeSeries, TimeSeriesModel } from './core/entities';
-import { parseISODate } from './helper/parse-iso-date';
+import { IDataPoint, ITimeSeries, TimeSeriesModel } from './core/entities/index.js';
+import { parseISODate } from './helper/parse-iso-date.js';
+
+process.on('uncaughtException', (err) => {
+  console.error('Unhandled exception:', err);
+  process.exit(1);
+});
 
 const app = express();
 const port = 3000;
@@ -18,7 +23,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  debugger;
   next();
 });
 
@@ -30,12 +34,9 @@ app.post('/post', async (req, res) => {
   res.send("Data araived");
 });
 
-debugger;
 
 app.post('/timeseries', async (req: Request<{}, {}, Omit<ITimeSeries, 'id' | 'data_points'>>, res: Response) => {
   const { name, description, frequency, units, tags } = req.body;
-
-  debugger;
 
   if (!name || !frequency || !units) {
     return res.status(400).json({ error: "Missing required fields: name, frequency, units" });
@@ -257,6 +258,7 @@ app.get('/timeseries/:id/data', async (req: Request<{ id: string }, {}, {}, { st
     res.status(500).json({ error: "Failed to retrieve time series data." });
   }
 });
+
 
 
 
